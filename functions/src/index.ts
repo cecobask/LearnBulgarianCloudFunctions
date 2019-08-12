@@ -1,13 +1,10 @@
 import * as admin from 'firebase-admin';
 import * as functions from 'firebase-functions';
 import * as _ from 'lodash';
-// Imports the Google Cloud client library
-const { Translate } = require('@google-cloud/translate');
+import { Translate } from '@google-cloud/translate';
+import axios from 'axios';
 
-// Start writing Firebase Functions
-// https://firebase.google.com/docs/functions/typescript
-
-// Instantiates a client
+// Instantiate a Cloud Translation client.
 const translate = new Translate({
     projectId: "learnbulgarian-8e7ea"
 });
@@ -15,7 +12,7 @@ const translate = new Translate({
 admin.initializeApp();
 
 
-// Select a random word every day at 00:00 Dublin time.
+// Function to select a random word every day at 00:00 Dublin time.
 exports.wordOfTheDay =
     functions.pubsub.schedule('00 00 * * *')
         .timeZone('Europe/Dublin')
@@ -148,38 +145,66 @@ exports.wordOfTheDay =
             ])!;
 
             try {
-                // Get current date for Dublin
+                // Get current date for Dublin.
                 const dublin_date = new Date(calculateDate(+1))
                 const formatted_date = dublin_date.getDate() + "-" + (dublin_date.getMonth() + 1) + "-" + dublin_date.getFullYear()
                 console.log("Date: " + formatted_date)
 
-                // Insert the new word of the day to the database with formatted_date as key and word as value for that key
+                // Insert the new word of the day to the database with formatted_date as key and word as value for that key.
                 await admin.database().ref('wordOfTheDay').child(formatted_date).set(word)
 
-                // Translate word to english
+                // Translate word to English.
                 const wotd: string = await translateText(word, 'bg', 'en')
                 const transliteration: string = transliterateBulgarian(word)
                 console.log("Word of the day: " + word + " (" + wotd + ")");
                 console.log("Transliteration: " + transliteration)
+
+                // Google Dictionary API request to fetch definitions and example sentences.
+                axios.get("https://googledictionaryapi.eu-gb.mybluemix.net/?define=" + wotd)
+                    .then(async response => {
+                        const data = response.data;
+                        for (const element in data) {
+                            const wordMeanings = data[element].meaning;
+                            for (const wordType in wordMeanings) {
+                                const currentType = wordMeanings[wordType];
+                                // Loop through current word type to extract data.
+                                for (const typeAttributes in currentType) {
+                                    const attributes = currentType[typeAttributes];
+                                    if (!_.isEmpty(attributes)) {
+                                        const definition = attributes.definition;
+                                        const exampleEN = attributes.example;
+                                        const exampleBG = exampleEN != undefined ? await translateText(exampleEN, 'en', 'bg') : undefined
+                                        console.log(wordType);
+                                        console.log(definition);
+                                        console.log(exampleEN);
+                                        console.log(exampleBG);
+                                    }
+                                }
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        console.log(error);
+                    });
             } catch (err) {
-                console.log("Write failed: " + err);
+                console.error("Write failed: " + err);
             }
         });
 
 // https://www.techrepublic.com/article/convert-the-local-time-to-another-time-zone-with-this-javascript/
 function calculateDate(offset: number) {
-    // create Date object for current location
+    // Create Date object for current location.
     const d = new Date();
     const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
 
-    // create new Date object for different city using supplied offset
+    // Create new Date object for different city using supplied offset.
     const nd = new Date(utc + (3600000 * offset));
 
-    // return time as a string
+    // Return date as a string.
     return nd.toLocaleDateString().replace(new RegExp('/', 'g'), "-")
 }
 
-// Google Cloud Translation API 
+// Google Cloud Translation API.
 async function translateText(text: string, sourceLang: string, targetLang: string): Promise<string> {
     let translation: string = ""
     await translate
@@ -221,7 +246,7 @@ function transliterateBulgarian(bg: string): string {
     en = en.replace(/ч/gi, "ch")
     en = en.replace(/ш/gi, "sh")
     en = en.replace(/щ/gi, "sht")
-    en = en.replace(/ъ/gi, "а'")
+    en = en.replace(/ъ/gi, "а")
     en = en.replace(/ь/gi, "y")
     en = en.replace(/ю/gi, "yu")
     en = en.replace(/я/gi, "ya")
