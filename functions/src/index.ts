@@ -3,6 +3,8 @@ import * as functions from 'firebase-functions';
 import * as _ from 'lodash';
 import { Translate } from '@google-cloud/translate';
 import axios from 'axios';
+import { WordMeaning } from './WordMeaning';
+import { WordOfTheDay } from './WordOfTheDay';
 
 // Instantiate a Cloud Translation client.
 const translate = new Translate({
@@ -146,23 +148,22 @@ exports.wordOfTheDay =
 
             try {
                 // Get current date for Dublin.
-                const dublin_date = new Date(calculateDate(+1))
-                const formatted_date = dublin_date.getDate() + "-" + (dublin_date.getMonth() + 1) + "-" + dublin_date.getFullYear()
-                console.log("Date: " + formatted_date)
-
-                // Insert the new word of the day to the database with formatted_date as key and word as value for that key.
-                await admin.database().ref('wordOfTheDay').child(formatted_date).set(word)
+                const dublin_date = new Date(calculateDate(+1));
+                const formatted_date = dublin_date.getDate() + "-" + (dublin_date.getMonth() + 1) + "-" + dublin_date.getFullYear();
+                console.log("Date: " + formatted_date);
 
                 // Translate word to English.
-                const wotd: string = await translateText(word, 'bg', 'en')
-                const transliteration: string = transliterateBulgarian(word)
+                const wotd: string = await translateText(word, 'bg', 'en');
+                const transliteration: string = transliterateBulgarian(word);
                 console.log("Word of the day: " + word + " (" + wotd + ")");
-                console.log("Transliteration: " + transliteration)
+                console.log("Transliteration: " + transliteration);
 
                 // Google Dictionary API request to fetch definitions and example sentences.
                 axios.get("https://googledictionaryapi.eu-gb.mybluemix.net/?define=" + wotd)
                     .then(async response => {
                         const data = response.data;
+                        const meaningsArray: WordMeaning[] = [] // Temporary variable to store each word meaning.
+
                         for (const element in data) {
                             const wordMeanings = data[element].meaning;
                             for (const wordType in wordMeanings) {
@@ -172,16 +173,17 @@ exports.wordOfTheDay =
                                     const attributes = currentType[typeAttributes];
                                     if (!_.isEmpty(attributes)) {
                                         const definition = attributes.definition;
-                                        const exampleEN = attributes.example;
-                                        const exampleBG = exampleEN != undefined ? await translateText(exampleEN, 'en', 'bg') : undefined
-                                        console.log(wordType);
-                                        console.log(definition);
-                                        console.log(exampleEN);
-                                        console.log(exampleBG);
+                                        const exampleEN = attributes.example !== undefined ? attributes.example : null
+                                        const exampleBG = exampleEN !== null ? await translateText(exampleEN, 'en', 'bg') : null;
+                                        // Add current meaning to the array.
+                                        meaningsArray.push(new WordMeaning(wordType, [definition, exampleEN, exampleBG]));
                                     }
                                 }
                             }
                         }
+                        // Insert the new word of the day to the database with formatted_date as key and WordOfTheDay object as value for that key.
+                        const wordOfTheDay = new WordOfTheDay(wotd, transliteration, meaningsArray);
+                        await admin.database().ref('wordOfTheDay').child(formatted_date).set(wordOfTheDay);
                     })
                     .catch(error => {
                         console.log(error);
@@ -201,12 +203,12 @@ function calculateDate(offset: number) {
     const nd = new Date(utc + (3600000 * offset));
 
     // Return date as a string.
-    return nd.toLocaleDateString().replace(new RegExp('/', 'g'), "-")
+    return nd.toLocaleDateString().replace(new RegExp('/', 'g'), "-");
 }
 
 // Google Cloud Translation API.
 async function translateText(text: string, sourceLang: string, targetLang: string): Promise<string> {
-    let translation: string = ""
+    let translation: string = "";
     await translate
         .translate(text, { from: sourceLang, to: targetLang })
         .then((results: any) => {
@@ -214,42 +216,42 @@ async function translateText(text: string, sourceLang: string, targetLang: strin
         })
         .catch((err: any) => {
             console.error(err)
-        })
+        });
 
-    return translation
+    return translation;
 }
 
 function transliterateBulgarian(bg: string): string {
-    let en = bg.replace(/а/gi, "a")
-    en = en.replace(/б/gi, "b")
-    en = en.replace(/в/gi, "v")
-    en = en.replace(/г/gi, "g")
-    en = en.replace(/д/gi, "d")
-    en = en.replace(/е/gi, "e")
-    en = en.replace(/ж/gi, "zh")
-    en = en.replace(/з/gi, "z")
-    en = en.replace(/и/gi, "i")
-    en = en.replace(/й/gi, "y")
-    en = en.replace(/к/gi, "k")
-    en = en.replace(/л/gi, "l")
-    en = en.replace(/м/gi, "m")
-    en = en.replace(/н/gi, "n")
-    en = en.replace(/о/gi, "o")
-    en = en.replace(/п/gi, "p")
-    en = en.replace(/р/gi, "r")
-    en = en.replace(/с/gi, "s")
-    en = en.replace(/т/gi, "t")
-    en = en.replace(/у/gi, "u")
-    en = en.replace(/ф/gi, "f")
-    en = en.replace(/х/gi, "h")
-    en = en.replace(/ц/gi, "ts")
-    en = en.replace(/ч/gi, "ch")
-    en = en.replace(/ш/gi, "sh")
-    en = en.replace(/щ/gi, "sht")
-    en = en.replace(/ъ/gi, "а")
-    en = en.replace(/ь/gi, "y")
-    en = en.replace(/ю/gi, "yu")
-    en = en.replace(/я/gi, "ya")
+    let en = bg.replace(/а/gi, "a");
+    en = en.replace(/б/gi, "b");
+    en = en.replace(/в/gi, "v");
+    en = en.replace(/г/gi, "g");
+    en = en.replace(/д/gi, "d");
+    en = en.replace(/е/gi, "e");
+    en = en.replace(/ж/gi, "zh");
+    en = en.replace(/з/gi, "z");
+    en = en.replace(/и/gi, "i");
+    en = en.replace(/й/gi, "y");
+    en = en.replace(/к/gi, "k");
+    en = en.replace(/л/gi, "l");
+    en = en.replace(/м/gi, "m");
+    en = en.replace(/н/gi, "n");
+    en = en.replace(/о/gi, "o");
+    en = en.replace(/п/gi, "p");
+    en = en.replace(/р/gi, "r");
+    en = en.replace(/с/gi, "s");
+    en = en.replace(/т/gi, "t");
+    en = en.replace(/у/gi, "u");
+    en = en.replace(/ф/gi, "f");
+    en = en.replace(/х/gi, "h");
+    en = en.replace(/ц/gi, "ts");
+    en = en.replace(/ч/gi, "ch");
+    en = en.replace(/ш/gi, "sh");
+    en = en.replace(/щ/gi, "sht");
+    en = en.replace(/ъ/gi, "а");
+    en = en.replace(/ь/gi, "y");
+    en = en.replace(/ю/gi, "yu");
+    en = en.replace(/я/gi, "ya");
 
-    return en
+    return en;
 }
