@@ -3,7 +3,6 @@ import * as functions from 'firebase-functions';
 import * as _ from 'lodash';
 import { Translate } from '@google-cloud/translate';
 import axios from 'axios';
-import { WordMeaning } from './WordMeaning';
 import { WordOfTheDay } from './WordOfTheDay';
 
 // Instantiate a Cloud Translation client.
@@ -150,39 +149,30 @@ exports.wordOfTheDay =
                 // Get current date for Dublin.
                 const dublin_date = new Date(calculateDate(+1));
                 const formatted_date = dublin_date.getDate() + "-" + (dublin_date.getMonth() + 1) + "-" + dublin_date.getFullYear();
-                console.log("Date: " + formatted_date);
 
                 // Translate word to English.
                 const wotd: string = await translateText(word, 'bg', 'en');
                 const transliteration: string = transliterateBulgarian(word);
                 console.log("Word of the day: " + word + " (" + wotd + ")");
-                console.log("Transliteration: " + transliteration);
 
                 // Google Dictionary API request to fetch definitions and example sentences.
                 axios.get("https://googledictionaryapi.eu-gb.mybluemix.net/?define=" + wotd)
                     .then(async response => {
-                        const data = response.data;
-                        const meaningsArray: WordMeaning[] = [] // Temporary variable to store each word meaning.
+                        // Extract needed data from API request.
+                        const data = response.data[0];
+                        const wordType = Object.keys(data.meaning)[0];
+                        const wordTypeObj = data.meaning[wordType][0];
+                        const wordDefinition = wordTypeObj.definition;
+                        const exampleSentenceEN = wordTypeObj.example !== undefined
+                            ? wordTypeObj.example
+                            : null;
+                        const exampleSentenceBG = exampleSentenceEN !== null
+                            ? await translateText(exampleSentenceEN, 'en', 'bg')
+                            : null;
 
-                        for (const element in data) {
-                            const wordMeanings = data[element].meaning;
-                            for (const wordType in wordMeanings) {
-                                const currentType = wordMeanings[wordType];
-                                // Loop through current word type to extract data.
-                                for (const typeAttributes in currentType) {
-                                    const attributes = currentType[typeAttributes];
-                                    if (!_.isEmpty(attributes)) {
-                                        const definition = attributes.definition;
-                                        const exampleEN = attributes.example !== undefined ? attributes.example : null
-                                        const exampleBG = exampleEN !== null ? await translateText(exampleEN, 'en', 'bg') : null;
-                                        // Add current meaning to the array.
-                                        meaningsArray.push(new WordMeaning(wordType, [definition, exampleEN, exampleBG]));
-                                    }
-                                }
-                            }
-                        }
                         // Insert the new word of the day to the database with formatted_date as key and WordOfTheDay object as value for that key.
-                        const wordOfTheDay = new WordOfTheDay(wotd, transliteration, meaningsArray);
+                        const wordOfTheDay = new WordOfTheDay(wotd, transliteration, wordType, wordDefinition,
+                            exampleSentenceEN, exampleSentenceBG);
                         await admin.database().ref('wordOfTheDay').child(formatted_date).set(wordOfTheDay);
                     })
                     .catch(error => {
@@ -222,6 +212,8 @@ async function translateText(text: string, sourceLang: string, targetLang: strin
 }
 
 function transliterateBulgarian(bg: string): string {
+    // Replace Bulgarian letters with corresponding English letters.
+    // This is used to make pronouncing Bulgarian words easier for learners. 
     let en = bg.replace(/а/gi, "a");
     en = en.replace(/б/gi, "b");
     en = en.replace(/в/gi, "v");
