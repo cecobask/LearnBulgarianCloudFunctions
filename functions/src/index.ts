@@ -33,42 +33,24 @@ exports.wordOfTheDay =
                 "гриф",
                 "гущер",
                 "гълъб",
-                "гъсок",
                 "делфин",
-                "див",
                 "заек",
-                "добитък",
                 "елен",
-                "енот",
-                "есетра",
-                "жерав",
                 "животно",
                 "жираф",
-                "жребец",
-                "зайчарник",
-                "звяр",
-                "змиорка",
                 "змия",
                 "калинка",
                 "камила",
                 "канарче",
                 "катерица",
                 "кенгуру",
-                "кит",
-                "кобила",
                 "коза",
                 "кокошка",
                 "комар",
-                "кон",
-                "котарак",
-                "котенце",
                 "котка",
-                "кочина",
                 "крава",
-                "краварник",
                 "кукувица",
-                "курник",
-                "кученце",
+                "куче",
                 "кълвач",
                 "къртица",
                 "лебед",
@@ -77,7 +59,6 @@ exports.wordOfTheDay =
                 "лъв",
                 "лястовица",
                 "маймуна",
-                "мармот",
                 "медуза",
                 "мечка",
                 "мишка",
@@ -85,60 +66,37 @@ exports.wordOfTheDay =
                 "морж",
                 "мравка",
                 "муха",
-                "насекомо",
                 "носорог",
-                "обор",
-                "овен",
                 "октопод",
                 "омар",
-                "орангутан",
                 "орел",
                 "оса",
-                "отглеждам",
-                "отровен",
                 "охлюв",
-                "панда",
                 "папагал",
                 "патица",
                 "паун",
-                "паяжина",
                 "паяк",
                 "пеперуда",
-                "петел",
                 "пингвин",
-                "питомен",
                 "плъх",
                 "прасе",
                 "прилеп",
-                "птица",
                 "пуйка",
                 "пчела",
-                "пъдпъдък",
-                "пъстърва",
                 "риба",
-                "тон",
                 "скакалец",
                 "скарида",
                 "слон",
                 "сова",
-                "стадо",
-                "стрида",
                 "сьомга",
                 "таралеж",
-                "теле",
                 "тигър",
-                "треска",
                 "тюлен",
                 "фазан",
-                "ферма",
                 "хамстер",
-                "херинга",
                 "хипопотам",
-                "хищник",
                 "хлебарка",
                 "чайка",
-                "шаран",
-                "шимпанзе",
                 "щраус",
                 "щурец",
                 "щъркел",
@@ -152,7 +110,7 @@ exports.wordOfTheDay =
 
                 // Translate word to English.
                 const wotd: string = await translateText(word, 'bg', 'en');
-                const transliteration: string = transliterateBulgarian(word);
+                const wordTransliteration: string = transliterateBulgarian(word);
                 console.log("Word of the day: " + word + " (" + wotd + ")");
 
                 // Google Dictionary API request to fetch definitions and example sentences.
@@ -171,7 +129,7 @@ exports.wordOfTheDay =
                             : null;
 
                         // Insert the new word of the day to the database with formatted_date as key and WordOfTheDay object as value for that key.
-                        const wordOfTheDay = new WordOfTheDay(wotd, transliteration, wordType, wordDefinition,
+                        const wordOfTheDay = new WordOfTheDay(word, wordTransliteration, wordType, wordDefinition,
                             exampleSentenceEN, exampleSentenceBG);
                         await admin.database().ref('wordOfTheDay').child(formatted_date).set(wordOfTheDay);
                     })
@@ -202,7 +160,7 @@ async function translateText(text: string, sourceLang: string, targetLang: strin
     await translate
         .translate(text, { from: sourceLang, to: targetLang })
         .then((results: any) => {
-            translation = JSON.stringify(results[0])
+            translation = results[0]
         })
         .catch((err: any) => {
             console.error(err)
