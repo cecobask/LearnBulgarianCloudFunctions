@@ -2,13 +2,18 @@ import * as admin from 'firebase-admin';
 import * as functions from 'firebase-functions';
 import * as _ from 'lodash';
 import { Translate } from '@google-cloud/translate';
+import { Storage } from '@google-cloud/storage';
 import axios from 'axios';
 import { WordOfTheDay } from './WordOfTheDay';
+import fs = require('fs');
+import xmlbuilder = require('xmlbuilder');
+import path = require('path');
+import * as os from 'os';
 
 // Instantiate a Cloud Translation client.
-const translate = new Translate({
-    projectId: "learnbulgarian-8e7ea"
-});
+const translate = new Translate();
+
+const storage = new Storage();
 
 admin.initializeApp();
 
@@ -18,6 +23,12 @@ exports.wordOfTheDay =
     functions.pubsub.schedule('00 00 * * *')
         .timeZone('Europe/Dublin')
         .onRun(async () => {
+            const speechToken: string = await getSpeechAccessToken(functions.config().speechservice.subkey)
+                .then(response => {
+                    return response.data
+                });
+            console.log(speechToken);
+
             const word = _.sample([
                 "акула",
                 "бик",
@@ -50,7 +61,6 @@ exports.wordOfTheDay =
                 "котка",
                 "крава",
                 "кукувица",
-                "куче",
                 "кълвач",
                 "къртица",
                 "лебед",
@@ -86,7 +96,6 @@ exports.wordOfTheDay =
                 "риба",
                 "скакалец",
                 "скарида",
-                "слон",
                 "сова",
                 "сьомга",
                 "таралеж",
@@ -98,7 +107,6 @@ exports.wordOfTheDay =
                 "хлебарка",
                 "чайка",
                 "щраус",
-                "щурец",
                 "щъркел",
                 "язовец"
             ])!;
@@ -110,23 +118,26 @@ exports.wordOfTheDay =
 
                 // Translate word to English.
                 const wotd: string = await translateText(word, 'bg', 'en');
-                const wordTransliteration: string = transliterateBulgarian(word);
+                const wordTransliteration: string = await transliterateBulgarian(word);
                 console.log("Word of the day: " + word + " (" + wotd + ")");
 
                 // Google Dictionary API request to fetch definitions and example sentences.
-                axios.get("https://googledictionaryapi.eu-gb.mybluemix.net/?define=" + wotd)
+                await axios.get("https://googledictionaryapi.eu-gb.mybluemix.net/?define=" + wotd)
                     .then(async response => {
                         // Extract needed data from API request.
                         const data = response.data[0];
                         const wordType = Object.keys(data.meaning)[0];
                         const wordTypeObj = data.meaning[wordType][0];
                         const wordDefinition = wordTypeObj.definition;
-                        const exampleSentenceEN = wordTypeObj.example !== undefined
-                            ? wordTypeObj.example
-                            : null;
-                        const exampleSentenceBG = exampleSentenceEN !== null
-                            ? await translateText(exampleSentenceEN, 'en', 'bg')
-                            : null;
+                        const exampleSentenceEN = wordTypeObj.example !== undefined ?
+                            wordTypeObj.example :
+                            null;
+                        const exampleSentenceBG = exampleSentenceEN !== null ?
+                            await translateText(exampleSentenceEN, 'en', 'bg') :
+                            null;
+
+                        // Save audio of word pronounciation to Google Cloud Storage.
+                        await textToSpeech(speechToken, word, formatted_date + '.mpeg');
 
                         // Insert the new word of the day to the database with formatted_date as key and WordOfTheDay object as value for that key.
                         const wordOfTheDay = new WordOfTheDay(word, wordTransliteration, wordType, wordDefinition,
@@ -204,4 +215,85 @@ function transliterateBulgarian(bg: string): string {
     en = en.replace(/я/gi, "ya");
 
     return en;
+}
+
+// Gets an access token.
+async function getSpeechAccessToken(subscriptionKey: string) {
+    return await axios.post('https://northeurope.api.cognitive.microsoft.com/sts/v1.0/issuetoken',
+        null, {
+            headers: {
+                'Ocp-Apim-Subscription-Key': subscriptionKey
+            }
+        });
+}
+
+async function textToSpeech(accessToken: string, text: string, fileName: string) {
+    // Create the SSML request.
+    const xml_body = xmlbuilder.create('speak')
+        .att('version', '1.0')
+        .att('xml:lang', 'bg-BG')
+        .ele('voice')
+        .att('xml:lang', 'bg-BG')
+        .att('xml:gender', 'Male')
+        .att('name', 'bg-BG-Ivan')
+        .txt(text)
+        .end();
+    // Convert the XML into a string to send in the TTS request.
+    const body = xml_body.toString();
+
+    await axios.post('https://northeurope.tts.speech.microsoft.com/cognitiveservices/v1', body, {
+        headers: {
+            'Authorization': 'Bearer ' + accessToken,
+            'Content-Type': 'application/ssml+xml',
+            'X-Microsoft-OutputFormat': 'audio-16khz-32kbitrate-mono-mp3',
+            'cache-control': 'no-cache'
+        },
+        responseType: 'stream'
+    }).then(
+        response => {
+            if (response.status === 200) {
+                // Get audio file from the response and store it temporarily in /tmp dir.
+                const tmp = os.tmpdir();
+                const filePath = path.join(tmp, fileName);
+                response.data.pipe(fs.createWriteStream(filePath));
+                traverseDir(tmp);
+
+                // Upload the audio file to Google Cloud Storage.
+                const bucket = storage.bucket('learnbulgarian-8e7ea.appspot.com');
+                const localRS = fs.createReadStream(path.join(tmp, fileName));
+                const remoteWS = bucket.file(fileName).createWriteStream();
+                localRS.pipe(remoteWS)
+                    .on('error', writeError => console.log(writeError))
+                    .on('finish', () => {
+                        console.log('Finished uploading file to Google Cloud Storage.');
+                        remoteWS.end();
+                        localRS.destroy();
+                    });
+
+                // Delete the temporary file from /tmp dir.
+                fs.unlink(filePath, deleteError => {
+                    if(deleteError) throw deleteError;
+                    console.log('File deleted.');
+                    traverseDir(tmp);
+                });
+            }
+        },
+        err => {
+            console.log(err);
+        });
+
+    return;
+}
+
+function traverseDir(dir: any) {
+    console.log('Traversing directory: ' + dir);
+    fs.readdirSync(dir).forEach(file => {
+        const fullPath = path.join(dir, file);
+        if (fs.lstatSync(fullPath).isDirectory()) {
+            console.log(fullPath);
+            traverseDir(fullPath);
+        } else {
+            console.log(fullPath);
+        }
+    });
 }
