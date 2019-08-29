@@ -41,7 +41,6 @@ exports.wordOfTheDay =
                 "гарван",
                 "глиган",
                 "горила",
-                "гриф",
                 "гущер",
                 "гълъб",
                 "делфин",
@@ -124,31 +123,33 @@ exports.wordOfTheDay =
                 // Google Dictionary API request to fetch definitions and example sentences.
                 await axios.get("https://googledictionaryapi.eu-gb.mybluemix.net/?define=" + wotd)
                     .then(async response => {
-                        // Extract needed data from API request.
-                        const data = response.data[0];
-                        const wordType = Object.keys(data.meaning)[0];
-                        const wordTypeObj = data.meaning[wordType][0];
-                        const wordDefinition = wordTypeObj.definition;
-                        const exampleSentenceEN = wordTypeObj.example !== undefined ?
-                            wordTypeObj.example :
-                            null;
-                        const exampleSentenceBG = exampleSentenceEN !== null ?
-                            await translateText(exampleSentenceEN, 'en', 'bg') :
-                            null;
+                        if (response.status === 200) {
+                            // Extract needed data from API request.
+                            const data = response.data[0];
+                            const wordType = Object.keys(data.meaning)[0];
+                            const wordTypeObj = data.meaning[wordType][0];
+                            const wordDefinition = wordTypeObj.definition;
+                            const exampleSentenceEN = wordTypeObj.example !== undefined ?
+                                wordTypeObj.example :
+                                null;
+                            const exampleSentenceBG = exampleSentenceEN !== null ?
+                                await translateText(exampleSentenceEN, 'en', 'bg') :
+                                null;
 
-                        // Save audio of word pronounciation to Google Cloud Storage.
-                        await textToSpeech(speechToken, word, formatted_date + '.mpeg');
+                            // Save audio of word pronounciation to Google Cloud Storage.
+                            const downloadURL = await textToSpeech(speechToken, word, formatted_date + '.mpeg');
 
-                        // Insert the new word of the day to the database with formatted_date as key and WordOfTheDay object as value for that key.
-                        const wordOfTheDay = new WordOfTheDay(word, wordTransliteration, wordType, wordDefinition,
-                            exampleSentenceEN, exampleSentenceBG);
-                        await admin.database().ref('wordOfTheDay').child(formatted_date).set(wordOfTheDay);
+                            // Insert the new word of the day to the database with formatted_date as key and WordOfTheDay object as value for that key.
+                            const wordOfTheDay = new WordOfTheDay(word, wordTransliteration, wordType, wordDefinition,
+                                exampleSentenceEN, exampleSentenceBG, downloadURL);
+                            await admin.database().ref('wordOfTheDay').child(formatted_date).set(wordOfTheDay);
+                        }
                     })
                     .catch(error => {
                         console.log(error);
                     });
             } catch (err) {
-                console.error("Write failed: " + err);
+                console.error(err);
             }
         });
 
@@ -227,7 +228,7 @@ async function getSpeechAccessToken(subscriptionKey: string) {
         });
 }
 
-async function textToSpeech(accessToken: string, text: string, fileName: string) {
+async function textToSpeech(accessToken: string, text: string, fileName: string): Promise<string> {
     // Create the SSML request.
     const xml_body = xmlbuilder.create('speak')
         .att('version', '1.0')
@@ -241,6 +242,9 @@ async function textToSpeech(accessToken: string, text: string, fileName: string)
     // Convert the XML into a string to send in the TTS request.
     const body = xml_body.toString();
 
+    // Google Cloud Storage bucket for the app.
+    const bucket = storage.bucket('learnbulgarian-8e7ea.appspot.com');
+
     await axios.post('https://northeurope.tts.speech.microsoft.com/cognitiveservices/v1', body, {
         headers: {
             'Authorization': 'Bearer ' + accessToken,
@@ -250,19 +254,18 @@ async function textToSpeech(accessToken: string, text: string, fileName: string)
         },
         responseType: 'stream'
     }).then(
-        response => {
+        async response => {
             if (response.status === 200) {
                 // Get audio file from the response and store it temporarily in /tmp dir.
                 const tmp = os.tmpdir();
                 const filePath = path.join(tmp, fileName);
-                response.data.pipe(fs.createWriteStream(filePath));
+                await response.data.pipe(fs.createWriteStream(filePath));
                 traverseDir(tmp);
 
                 // Upload the audio file to Google Cloud Storage.
-                const bucket = storage.bucket('learnbulgarian-8e7ea.appspot.com');
                 const localRS = fs.createReadStream(path.join(tmp, fileName));
-                const remoteWS = bucket.file(fileName).createWriteStream();
-                localRS.pipe(remoteWS)
+                const remoteWS = bucket.file(fileName).createWriteStream({ contentType: 'audio/mpeg', resumable: false, predefinedAcl: 'publicRead' });
+                await localRS.pipe(remoteWS)
                     .on('error', writeError => console.log(writeError))
                     .on('finish', () => {
                         console.log('Finished uploading file to Google Cloud Storage.');
@@ -272,7 +275,7 @@ async function textToSpeech(accessToken: string, text: string, fileName: string)
 
                 // Delete the temporary file from /tmp dir.
                 fs.unlink(filePath, deleteError => {
-                    if(deleteError) throw deleteError;
+                    if (deleteError) throw deleteError;
                     console.log('File deleted.');
                     traverseDir(tmp);
                 });
@@ -282,7 +285,8 @@ async function textToSpeech(accessToken: string, text: string, fileName: string)
             console.log(err);
         });
 
-    return;
+    // Return URL to Google Cloud Storage location of the word.
+    return `https://storage.googleapis.com/learnbulgarian-8e7ea.appspot.com/${fileName}`;
 }
 
 function traverseDir(dir: any) {
