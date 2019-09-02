@@ -29,92 +29,14 @@ exports.wordOfTheDay =
                 });
             console.log(speechToken);
 
-            const word = _.sample([
-                "акула",
-                "бик",
-                "бобър",
-                "бръмбар",
-                "видра",
-                "врабче",
-                "врана",
-                "вълк",
-                "гарван",
-                "глиган",
-                "горила",
-                "гущер",
-                "гълъб",
-                "делфин",
-                "заек",
-                "елен",
-                "животно",
-                "жираф",
-                "змия",
-                "калинка",
-                "камила",
-                "канарче",
-                "катерица",
-                "кенгуру",
-                "коза",
-                "кокошка",
-                "комар",
-                "котка",
-                "крава",
-                "кукувица",
-                "кълвач",
-                "къртица",
-                "лебед",
-                "лисица",
-                "лос",
-                "лъв",
-                "лястовица",
-                "маймуна",
-                "медуза",
-                "мечка",
-                "мишка",
-                "молец",
-                "морж",
-                "мравка",
-                "муха",
-                "носорог",
-                "октопод",
-                "омар",
-                "орел",
-                "оса",
-                "охлюв",
-                "папагал",
-                "патица",
-                "паун",
-                "паяк",
-                "пеперуда",
-                "пингвин",
-                "плъх",
-                "прасе",
-                "прилеп",
-                "пуйка",
-                "пчела",
-                "риба",
-                "скакалец",
-                "скарида",
-                "сова",
-                "сьомга",
-                "таралеж",
-                "тигър",
-                "тюлен",
-                "фазан",
-                "хамстер",
-                "хипопотам",
-                "хлебарка",
-                "чайка",
-                "щраус",
-                "щъркел",
-                "язовец"
-            ])!;
+            // Get current date for Dublin.
+            const dublinDate = new Date(calculateDate(+1));
+            const formattedDate = dublinDate.getDate() + "-" + (dublinDate.getMonth() + 1) + "-" + dublinDate.getFullYear();
+
+            // Pick a random word that hasn't been selected before.
+            const word = await pickWordOfTheDay(formattedDate);
 
             try {
-                // Get current date for Dublin.
-                const dublin_date = new Date(calculateDate(+1));
-                const formatted_date = dublin_date.getDate() + "-" + (dublin_date.getMonth() + 1) + "-" + dublin_date.getFullYear();
-
                 // Translate word to English.
                 const wotd: string = await translateText(word, 'bg', 'en');
                 const wordTransliteration: string = await transliterateBulgarian(word);
@@ -137,12 +59,12 @@ exports.wordOfTheDay =
                                 null;
 
                             // Save audio of word pronounciation to Google Cloud Storage.
-                            const downloadURL = await textToSpeech(speechToken, word, formatted_date + '.mpeg');
+                            const downloadURL = await textToSpeech(speechToken, word, formattedDate + '.mpeg');
 
                             // Insert the new word of the day to the database with formatted_date as key and WordOfTheDay object as value for that key.
                             const wordOfTheDay = new WordOfTheDay(word, wordTransliteration, wordType, wordDefinition,
                                 exampleSentenceEN, exampleSentenceBG, downloadURL);
-                            await admin.database().ref('wordOfTheDay').child(formatted_date).set(wordOfTheDay);
+                            await admin.database().ref('wordOfTheDay').child(formattedDate).set(wordOfTheDay);
                         }
                     })
                     .catch(error => {
@@ -263,7 +185,7 @@ async function textToSpeech(accessToken: string, text: string, fileName: string)
                 traverseDir(tmp);
 
                 // Upload the audio file to Google Cloud Storage.
-                const localRS = fs.createReadStream(path.join(tmp, fileName));
+                const localRS = fs.createReadStream(filePath);
                 const remoteWS = bucket.file(fileName).createWriteStream({ contentType: 'audio/mpeg', resumable: false, predefinedAcl: 'publicRead' });
                 await localRS.pipe(remoteWS)
                     .on('error', writeError => console.log(writeError))
@@ -300,4 +222,109 @@ function traverseDir(dir: any) {
             console.log(fullPath);
         }
     });
+}
+
+async function pickWordOfTheDay(date: string): Promise<string> {
+    // Picks random word.
+    const word = _.sample([
+        "акула",
+        "бик",
+        "бобър",
+        "бръмбар",
+        "видра",
+        "врабче",
+        "врана",
+        "вълк",
+        "гарван",
+        "глиган",
+        "горила",
+        "гущер",
+        "гълъб",
+        "делфин",
+        "заек",
+        "елен",
+        "животно",
+        "жираф",
+        "змия",
+        "калинка",
+        "камила",
+        "канарче",
+        "катерица",
+        "кенгуру",
+        "коза",
+        "кокошка",
+        "комар",
+        "котка",
+        "крава",
+        "кукувица",
+        "кълвач",
+        "къртица",
+        "лебед",
+        "лисица",
+        "лос",
+        "лъв",
+        "лястовица",
+        "маймуна",
+        "медуза",
+        "мечка",
+        "мишка",
+        "молец",
+        "морж",
+        "мравка",
+        "муха",
+        "носорог",
+        "октопод",
+        "омар",
+        "орел",
+        "оса",
+        "охлюв",
+        "папагал",
+        "патица",
+        "паун",
+        "паяк",
+        "пеперуда",
+        "пингвин",
+        "плъх",
+        "прасе",
+        "прилеп",
+        "пуйка",
+        "пчела",
+        "риба",
+        "скакалец",
+        "скарида",
+        "сова",
+        "сьомга",
+        "таралеж",
+        "тигър",
+        "тюлен",
+        "фазан",
+        "хамстер",
+        "хипопотам",
+        "хлебарка",
+        "чайка",
+        "щраус",
+        "щъркел",
+        "язовец"
+    ])!;
+
+    const pastWords: string[] = [];
+    const pastWordsRef = admin.database().ref('wordOfTheDay').child('pastWords');
+
+    // Add past words from the Firebase Database to local array.
+    await pastWordsRef.on('value', snap => {
+        snap!.forEach(element => {
+            pastWords.push(element.val());
+        });
+    });
+
+    // Check if the chosen word has been picked before.
+    if (pastWords.includes(word)) {
+        // Recursive function call.
+        await pickWordOfTheDay(date);
+    };
+
+    // Update the database of past words.
+    await pastWordsRef.child(date).set(word);
+
+    return word;
 }
