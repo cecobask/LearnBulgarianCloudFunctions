@@ -5,16 +5,16 @@ export class WordOfTheDay {
     wordDefinition: string;
     exampleSentenceEN: string | null;
     exampleSentenceBG: string | null;
-    downloadURL: string;
+    pronunciationURL: string;
 
     constructor(word: string, wordTransliteration: string, wordType: string, wordDefinition: string,
-        exampleSentenceEN: string | null, exampleSentenceBG: string | null, downloadURL: string) {
+        exampleSentenceEN: string | null, exampleSentenceBG: string | null, pronunciationURL: string) {
         this.word = word;
         this.wordTransliteration = wordTransliteration;
         this.wordType = wordType;
         this.wordDefinition = wordDefinition;
         this.exampleSentenceEN = exampleSentenceEN;
         this.exampleSentenceBG = exampleSentenceBG;
-        this.downloadURL = downloadURL;
+        this.pronunciationURL = pronunciationURL;
     }
 }

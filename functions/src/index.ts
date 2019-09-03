@@ -59,11 +59,11 @@ exports.wordOfTheDay =
                                 null;
 
                             // Save audio of word pronounciation to Google Cloud Storage.
-                            const downloadURL = await textToSpeech(speechToken, word, formattedDate + '.mpeg');
+                            const pronunciationURL = await textToSpeech(speechToken, word, formattedDate + '.mpeg');
 
                             // Insert the new word of the day to the database with formatted_date as key and WordOfTheDay object as value for that key.
                             const wordOfTheDay = new WordOfTheDay(word, wordTransliteration, wordType, wordDefinition,
-                                exampleSentenceEN, exampleSentenceBG, downloadURL);
+                                exampleSentenceEN, exampleSentenceBG, pronunciationURL);
                             await admin.database().ref('wordOfTheDay').child(formattedDate).set(wordOfTheDay);
                         }
                     })
