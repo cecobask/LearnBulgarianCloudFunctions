@@ -10,13 +10,11 @@ import xmlbuilder = require('xmlbuilder');
 import path = require('path');
 import * as os from 'os';
 
-// Instantiate a Cloud Translation client.
+// Instantiate objects.
 const translate = new Translate();
-
 const storage = new Storage();
 
 admin.initializeApp();
-
 
 // Function to select a random word every day at 00:00 Dublin time.
 exports.wordOfTheDay =
@@ -27,11 +25,9 @@ exports.wordOfTheDay =
                 .then(response => {
                     return response.data
                 });
-            console.log(speechToken);
 
             // Get current date for Dublin.
-            const dublinDate = new Date(calculateDate(+1));
-            const formattedDate = dublinDate.getDate() + "-" + (dublinDate.getMonth() + 1) + "-" + dublinDate.getFullYear();
+            const formattedDate = calculateDate(+1);
 
             // Pick a random word that hasn't been selected before.
             const word = await pickWordOfTheDay(formattedDate);
@@ -42,50 +38,55 @@ exports.wordOfTheDay =
                 const wordTransliteration: string = await transliterateBulgarian(word);
                 console.log("Word of the day: " + word + " (" + wotd + ")");
 
-                // Google Dictionary API request to fetch definitions and example sentences.
-                await axios.get("https://googledictionaryapi.eu-gb.mybluemix.net/?define=" + wotd)
-                    .then(async response => {
-                        if (response.status === 200) {
-                            // Extract needed data from API request.
-                            const data = response.data[0];
-                            const wordType = Object.keys(data.meaning)[0];
-                            const wordTypeObj = data.meaning[wordType][0];
-                            const wordDefinition = wordTypeObj.definition;
-                            const exampleSentenceEN = wordTypeObj.example !== undefined ?
-                                wordTypeObj.example :
-                                null;
-                            const exampleSentenceBG = exampleSentenceEN !== null ?
-                                await translateText(exampleSentenceEN, 'en', 'bg') :
-                                null;
+                // Send http requests simultaneously.
+                await axios.all([getWordDefinition(wotd), getExampleSentence(wotd)])
+                    .then(axios.spread(async (definitions, examples) => {
+                        if (definitions.status === 200 && examples.status === 200) {
+                            const wordDef = definitions.data.find((definition: any) =>
+                                // Return the first word definition that's not undefined. 
+                                definition.text !== undefined
+                            );
+
+                            const exampleSentence = examples.data.examples.find((example: any) =>
+                                // Return the first example sentence that's not undefined.
+                                example.text !== undefined
+                            );
+
+                            const wordType = wordDef.partOfSpeech;
+                            const wordDefinition = stripHtml(wordDef.text);
+                            const exampleSentenceEN = stripHtml(exampleSentence.text);
+
+                            // Translate English to Bulgarian.
+                            const exampleSentenceBG = await translateText(exampleSentenceEN, 'en', 'bg');
 
                             // Save audio of word pronounciation to Google Cloud Storage.
                             const pronunciationURL = await textToSpeech(speechToken, word, formattedDate + '.mpeg');
 
-                            // Insert the new word of the day to the database with formatted_date as key and WordOfTheDay object as value for that key.
+                            // Insert the new word of the day to the database with formatted_date as key and WordOfTheDay object as value.
                             const wordOfTheDay = new WordOfTheDay(formattedDate, word, wordTransliteration, wordType, wordDefinition,
                                 exampleSentenceEN, exampleSentenceBG, pronunciationURL);
                             await admin.database().ref('wordOfTheDay').child(formattedDate).set(wordOfTheDay);
                         }
-                    })
-                    .catch(error => {
-                        console.log(error);
-                    });
+                    }));
             } catch (err) {
                 console.error(err);
             }
         });
 
 // https://www.techrepublic.com/article/convert-the-local-time-to-another-time-zone-with-this-javascript/
-function calculateDate(offset: number) {
+function calculateDate(offset: number): string {
     // Create Date object for current location.
     const d = new Date();
     const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
 
     // Create new Date object for different city using supplied offset.
     const nd = new Date(utc + (3600000 * offset));
+    const day = nd.getDate();
+    const month = nd.getMonth() + 1;
+    const year = nd.getFullYear();
 
-    // Return date as a string.
-    return nd.toLocaleDateString().replace(new RegExp('/', 'g'), "-");
+    // Return date as string.
+    return day + '-' + month + '-' + year;
 }
 
 // Google Cloud Translation API.
@@ -144,10 +145,10 @@ function transliterateBulgarian(bg: string): string {
 async function getSpeechAccessToken(subscriptionKey: string) {
     return await axios.post('https://northeurope.api.cognitive.microsoft.com/sts/v1.0/issuetoken',
         null, {
-            headers: {
-                'Ocp-Apim-Subscription-Key': subscriptionKey
-            }
-        });
+        headers: {
+            'Ocp-Apim-Subscription-Key': subscriptionKey
+        }
+    });
 }
 
 async function textToSpeech(accessToken: string, text: string, fileName: string): Promise<string> {
@@ -327,4 +328,28 @@ async function pickWordOfTheDay(date: string): Promise<string> {
     await pastWordsRef.child(date).set(word);
 
     return word;
+}
+
+function getWordDefinition(word: string) {
+    return axios.get(`https://api.wordnik.com/v4/word.json/${word}/definitions`, {
+        params: {
+            'api_key': functions.config().wordnik.apikey,
+            'limit': 5,
+            'useCanonical': true
+        }
+    })
+}
+
+function getExampleSentence(word: string) {
+    return axios.get(`https://api.wordnik.com/v4/word.json/${word}/examples`, {
+        params: {
+            'api_key': functions.config().wordnik.apikey,
+            'limit': 5,
+            'useCanonical': true
+        }
+    })
+}
+
+function stripHtml(htmlString: string) {
+    return htmlString.replace(/<[^>]+>/g, '');
 }
