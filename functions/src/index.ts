@@ -95,7 +95,7 @@ async function translateText(text: string, sourceLang: string, targetLang: strin
     await translate
         .translate(text, { from: sourceLang, to: targetLang })
         .then((results: any) => {
-            translation = results[0]
+            translation = results[0].startsWith("the ") ? results[0].substring(4) : results[0]
         })
         .catch((err: any) => {
             console.error(err)
