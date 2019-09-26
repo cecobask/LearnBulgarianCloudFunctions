@@ -95,7 +95,12 @@ async function translateText(text: string, sourceLang: string, targetLang: strin
     await translate
         .translate(text, { from: sourceLang, to: targetLang })
         .then((results: any) => {
-            translation = results[0].startsWith("the ") ? results[0].substring(4) : results[0]
+            // Translated word may start with 'the/an/a';
+            if (results[0].startsWith("the ") || results[0].startsWith("a ") || results[0].startsWith("an ")) {
+                // Remove article from the string.
+                translation = results[0].split(' ').pop();
+            }
+            else translation = results[0];
         })
         .catch((err: any) => {
             console.error(err)
