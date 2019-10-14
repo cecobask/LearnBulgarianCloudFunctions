@@ -63,7 +63,7 @@ exports.wordOfTheDay =
                             const pronunciationURL = await textToSpeech(speechToken, word, formattedDate + '.mpeg');
 
                             // Insert the new word of the day to the database with formatted_date as key and WordOfTheDay object as value.
-                            const wordOfTheDay = new WordOfTheDay(formattedDate, word, wordTransliteration, wordType, wordDefinition,
+                            const wordOfTheDay = new WordOfTheDay(formattedDate, word, wotd, wordTransliteration, wordType, wordDefinition,
                                 exampleSentenceEN, exampleSentenceBG, pronunciationURL);
                             await admin.database().ref('wordOfTheDay').child(formattedDate).set(wordOfTheDay);
                         }
