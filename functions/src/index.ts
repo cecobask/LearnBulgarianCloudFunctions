@@ -171,7 +171,7 @@ async function textToSpeech(accessToken: string, text: string, fileName: string)
     const body = xml_body.toString();
 
     // Google Cloud Storage bucket for the app.
-    const bucket = storage.bucket('learnbulgarian-8e7ea.appspot.com');
+    const bucket = storage.bucket('lingvino.appspot.com');
 
     await axios.post('https://northeurope.tts.speech.microsoft.com/cognitiveservices/v1', body, {
         headers: {
@@ -214,7 +214,7 @@ async function textToSpeech(accessToken: string, text: string, fileName: string)
         });
 
     // Return URL to Google Cloud Storage location of the word.
-    return `https://storage.googleapis.com/learnbulgarian-8e7ea.appspot.com/${fileName}`;
+    return `https://storage.googleapis.com/lingvino.appspot.com/${fileName}`;
 }
 
 function traverseDir(dir: any) {
