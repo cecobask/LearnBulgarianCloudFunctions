@@ -16,6 +16,9 @@ const storage = new Storage();
 
 admin.initializeApp();
 
+const pastWordsRef = admin.database().ref('wordOfTheDay').child('past');
+const currentWOTDRef = admin.database().ref('wordOfTheDay').child('current')
+
 // Function to select a random word every day at 00:00 Dublin time.
 exports.wordOfTheDay =
     functions.pubsub.schedule('00 00 * * *')
@@ -30,7 +33,8 @@ exports.wordOfTheDay =
             const formattedDate = calculateDate(+1);
 
             // Pick a random word that hasn't been selected before.
-            const word = await pickWordOfTheDay(formattedDate);
+            const word = await pickWordOfTheDay();
+            console.log(word);
 
             try {
                 // Translate word to English.
@@ -62,10 +66,15 @@ exports.wordOfTheDay =
                             // Save audio of word pronounciation to Google Cloud Storage.
                             const pronunciationURL = await textToSpeech(speechToken, word, formattedDate + '.mpeg');
 
-                            // Insert the new word of the day to the database with formatted_date as key and WordOfTheDay object as value.
+                            // Create a WOTD object.
                             const wordOfTheDay = new WordOfTheDay(formattedDate, word, wotd, wordTransliteration, wordType, wordDefinition,
                                 exampleSentenceEN, exampleSentenceBG, pronunciationURL);
-                            await admin.database().ref('wordOfTheDay').child(formattedDate).set(wordOfTheDay);
+                            
+                            // Insert the new WOTD to the database.
+                            await currentWOTDRef.set(wordOfTheDay);
+
+                            // Update the database of past words.
+                            await pastWordsRef.child(formattedDate).set(wordOfTheDay);
                         }
                     }));
             } catch (err) {
@@ -230,7 +239,7 @@ function traverseDir(dir: any) {
     });
 }
 
-async function pickWordOfTheDay(date: string): Promise<string> {
+async function pickWordOfTheDay(): Promise<string> {
     // Picks random word.
     const word = _.sample([
         "акула",
@@ -313,26 +322,23 @@ async function pickWordOfTheDay(date: string): Promise<string> {
         "язовец"
     ])!;
 
-    const pastWords: string[] = [];
-    const pastWordsRef = admin.database().ref('wordOfTheDay').child('pastWords');
-
-    // Add past words from the Firebase Database to local array.
-    await pastWordsRef.on('value', snap => {
-        snap!.forEach(element => {
-            pastWords.push(element.val());
+    // Retrieve all past WOTDs.
+    const pastWords: any[] = [];
+    await pastWordsRef.once('value', snap => {
+        snap!.forEach(el => {
+            pastWords.push(el.val());
         });
     });
 
     // Check if the chosen word has been picked before.
-    if (pastWords.includes(word)) {
+    if (pastWords.some(w => w.word === word)) {
         // Recursive function call.
-        await pickWordOfTheDay(date);
-    };
-
-    // Update the database of past words.
-    await pastWordsRef.child(date).set(word);
-
-    return word;
+        console.log(`word ${word} already picked.`)
+        return pickWordOfTheDay();
+    } else {
+        console.log(`word ${word} hasn't been picked before.`)
+        return word;
+    }
 }
 
 function getWordDefinition(word: string) {
