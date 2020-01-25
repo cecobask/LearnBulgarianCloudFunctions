@@ -33,17 +33,26 @@ exports.wordOfTheDay =
             const formattedDate = calculateDate(+1);
 
             // Pick a random word that hasn't been selected before.
-            const word = await pickWordOfTheDay();
-            console.log(word);
+            const wordBG = await pickWordOfTheDay();
+            console.log(wordBG);
 
             try {
-                // Translate word to English.
-                const wotd: string = await translateText(word, 'bg', 'en');
-                const wordTransliteration: string = await transliterateBulgarian(word);
-                console.log("Word of the day: " + word + " (" + wotd + ")");
+                // Translate word.
+                const wotdEN = await translateText(wordBG, 'bg', 'en');
+                const wotdES = await translateText(wordBG, 'bg', 'es');
+                const wotdRU = await translateText(wordBG, 'bg', 'ru');
+
+                const wordTransliteration: string = await transliterateBulgarian(wordBG);
+                console.log("Word of the day: " + wordBG + " (" + wotdEN + ")");
+                console.log("Word of the day: " + wordBG + " (" + wotdES + ")");
+                console.log("Word of the day: " + wordBG + " (" + wotdRU + ")");
+
+                // const wordsArray = [wordBG, wotdEN, wotdRU, wotdES]
+                // 
+                // 
 
                 // Send http requests simultaneously.
-                await axios.all([getWordDefinition(wotd), getExampleSentence(wotd)])
+                await axios.all([getWordDefinition(wotdEN), getExampleSentence(wotdEN)])
                     .then(axios.spread(async (definitions, examples) => {
                         if (definitions.status === 200 && examples.status === 200) {
                             const wordDef = definitions.data.find((definition: any) =>
@@ -57,19 +66,32 @@ exports.wordOfTheDay =
                             );
 
                             const wordType = wordDef.partOfSpeech;
-                            const wordDefinition = stripHtml(wordDef.text);
+
+                            // Translate definition.
+                            const wordDefinitionEN = stripHtml(wordDef.text);
+                            const wordDefinitionBG = await translateText(wordDefinitionEN, 'en', 'bg');
+                            const wordDefinitionRU = await translateText(wordDefinitionEN, 'en', 'ru');
+                            const wordDefinitionES = await translateText(wordDefinitionEN, 'en', 'es');
+
+                            // Translate sentence.
                             const exampleSentenceEN = stripHtml(exampleSentence.text);
-
-                            // Translate English to Bulgarian.
                             const exampleSentenceBG = await translateText(exampleSentenceEN, 'en', 'bg');
+                            const exampleSentenceRU = await translateText(exampleSentenceEN, 'en', 'ru');
+                            const exampleSentenceES = await translateText(exampleSentenceEN, 'en', 'es');
 
-                            // Save audio of word pronounciation to Google Cloud Storage.
-                            const pronunciationURL = await textToSpeech(speechToken, word, formattedDate + '.mpeg');
+                            // Save audio of word pronounciations to Google Cloud Storage.
+                            const pronunciationURL_BG = await textToSpeech(speechToken, wordBG, formattedDate, 'bg');
+                            const pronunciationURL_EN = await textToSpeech(speechToken, wotdEN, formattedDate, 'en');
+                            const pronunciationURL_RU = await textToSpeech(speechToken, wotdRU, formattedDate, 'ru');
+                            const pronunciationURL_ES = await textToSpeech(speechToken, wotdES, formattedDate, 'es');
 
                             // Create a WOTD object.
-                            const wordOfTheDay = new WordOfTheDay(formattedDate, word, wotd, wordTransliteration, wordType, wordDefinition,
-                                exampleSentenceEN, exampleSentenceBG, pronunciationURL);
-                            
+                            const wordOfTheDay = new WordOfTheDay(formattedDate, wordBG, wotdEN, wotdRU, wotdES,
+                                wordTransliteration, wordType, wordDefinitionBG, wordDefinitionEN, wordDefinitionRU,
+                                wordDefinitionES, exampleSentenceEN, exampleSentenceBG, exampleSentenceRU,
+                                exampleSentenceES, pronunciationURL_BG, pronunciationURL_EN, pronunciationURL_RU,
+                                pronunciationURL_ES);
+
                             // Insert the new WOTD to the database.
                             await currentWOTDRef.set(wordOfTheDay);
 
@@ -165,15 +187,45 @@ async function getSpeechAccessToken(subscriptionKey: string) {
     });
 }
 
-async function textToSpeech(accessToken: string, text: string, fileName: string): Promise<string> {
+async function textToSpeech(accessToken: string, text: string, fileName: string, language: string): Promise<string> {
+    let name: string;
+    let lang: string;
+
+    // Define full filename.
+    const fullFileName = fileName + `-${language}.mpeg`;
+
+    // Determine what language and which speaker to use for pronunciations.
+    switch (language) {
+        case "en":
+            name = "en-GB-George-Apollo";
+            lang = "en-GB";
+            break;
+        case "bg":
+            name = "bg-BG-Ivan";
+            lang = "bg-BG";
+            break;
+        case "es":
+            name = "es-ES-Pablo-Apollo";
+            lang = "es-ES";
+            break;
+        case "ru":
+            name = "ru-RU-Pavel-Apollo";
+            lang = "ru-RU";
+            break;
+        default:
+            name = "bg-BG-Ivan";
+            lang = "bg-BG";
+
+    }
+
     // Create the SSML request.
     const xml_body = xmlbuilder.create('speak')
         .att('version', '1.0')
-        .att('xml:lang', 'bg-BG')
+        .att('xml:lang', lang)
         .ele('voice')
-        .att('xml:lang', 'bg-BG')
+        .att('xml:lang', lang)
         .att('xml:gender', 'Male')
-        .att('name', 'bg-BG-Ivan')
+        .att('name', name)
         .txt(text)
         .end();
     // Convert the XML into a string to send in the TTS request.
@@ -195,13 +247,13 @@ async function textToSpeech(accessToken: string, text: string, fileName: string)
             if (response.status === 200) {
                 // Get audio file from the response and store it temporarily in /tmp dir.
                 const tmp = os.tmpdir();
-                const filePath = path.join(tmp, fileName);
+                const filePath = path.join(tmp, fullFileName);
                 await response.data.pipe(fs.createWriteStream(filePath));
                 traverseDir(tmp);
 
                 // Upload the audio file to Google Cloud Storage.
                 const localRS = fs.createReadStream(filePath);
-                const remoteWS = bucket.file(fileName).createWriteStream({ contentType: 'audio/mpeg', resumable: false, predefinedAcl: 'publicRead' });
+                const remoteWS = bucket.file(fullFileName).createWriteStream({ contentType: 'audio/mpeg', resumable: false, predefinedAcl: 'publicRead' });
                 await localRS.pipe(remoteWS)
                     .on('error', writeError => console.log(writeError))
                     .on('finish', () => {
@@ -223,7 +275,7 @@ async function textToSpeech(accessToken: string, text: string, fileName: string)
         });
 
     // Return URL to Google Cloud Storage location of the word.
-    return `https://storage.googleapis.com/lingvino.appspot.com/${fileName}`;
+    return `https://storage.googleapis.com/lingvino.appspot.com/${fullFileName}`;
 }
 
 function traverseDir(dir: any) {
