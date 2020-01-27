@@ -4,7 +4,10 @@ export class WordOfTheDay {
     wordEN: string;
     wordRU: string;
     wordES: string;
-    wordTransliteration: string;
+    wordTransliterationBG: string;
+    wordTransliterationEN: string;
+    wordTransliterationRU: string;
+    wordTransliterationES: string;
     wordType: string;
     wordDefinitionBG: string;
     wordDefinitionEN: string;
@@ -20,7 +23,7 @@ export class WordOfTheDay {
     pronunciationURL_ES: string;
 
     constructor(wordDate: string, wordBG: string, wordEN: string, wordRU: string, wordES: string,
-        wordTransliteration: string, wordType: string,
+        wordTransliterationBG: string, wordTransliterationEN: string, wordTransliterationRU: string, wordTransliterationES: string, wordType: string,
         wordDefinitionBG: string, wordDefinitionEN: string, wordDefinitionRU: string, wordDefinitionES: string,
         exampleSentenceEN: string | null, exampleSentenceBG: string | null, exampleSentenceRU: string | null, exampleSentenceES: string | null,
         pronunciationURL_BG: string, pronunciationURL_EN: string, pronunciationURL_RU: string, pronunciationURL_ES: string) {
@@ -29,7 +32,10 @@ export class WordOfTheDay {
         this.wordEN = wordEN;
         this.wordRU = wordRU;
         this.wordES = wordES;
-        this.wordTransliteration = wordTransliteration;
+        this.wordTransliterationBG = wordTransliterationBG;
+        this.wordTransliterationEN = wordTransliterationEN;
+        this.wordTransliterationRU = wordTransliterationRU;
+        this.wordTransliterationES = wordTransliterationES;
         this.wordType = wordType;
         this.wordDefinitionBG = wordDefinitionBG;
         this.wordDefinitionEN = wordDefinitionEN;

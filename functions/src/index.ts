@@ -42,7 +42,11 @@ exports.wordOfTheDay =
                 const wotdES = await translateText(wordBG, 'bg', 'es');
                 const wotdRU = await translateText(wordBG, 'bg', 'ru');
 
-                const wordTransliteration: string = await transliterateBulgarian(wordBG);
+                const wordTransliterationBG: string = transliterateBulgarian(wordBG);
+                const wordTransliterationEN: string = wotdEN;
+                const wordTransliterationRU: string = transliterateRussian(wotdRU);
+                const wordTransliterationES: string = transliterateSpanish(wotdES);
+
                 console.log("Word of the day: " + wordBG + " (" + wotdEN + ")");
                 console.log("Word of the day: " + wordBG + " (" + wotdES + ")");
                 console.log("Word of the day: " + wordBG + " (" + wotdRU + ")");
@@ -87,7 +91,8 @@ exports.wordOfTheDay =
 
                             // Create a WOTD object.
                             const wordOfTheDay = new WordOfTheDay(formattedDate, wordBG, wotdEN, wotdRU, wotdES,
-                                wordTransliteration, wordType, wordDefinitionBG, wordDefinitionEN, wordDefinitionRU,
+                                wordTransliterationBG, wordTransliterationEN, wordTransliterationRU, wordTransliterationES,
+                                wordType, wordDefinitionBG, wordDefinitionEN, wordDefinitionRU,
                                 wordDefinitionES, exampleSentenceEN, exampleSentenceBG, exampleSentenceRU,
                                 exampleSentenceES, pronunciationURL_BG, pronunciationURL_EN, pronunciationURL_RU,
                                 pronunciationURL_ES);
@@ -173,6 +178,89 @@ function transliterateBulgarian(bg: string): string {
     en = en.replace(/ь/gi, "y");
     en = en.replace(/ю/gi, "yu");
     en = en.replace(/я/gi, "ya");
+
+    return en;
+}
+
+function transliterateRussian(ru: string): string {
+    // Replace Russian letters with corresponding English letters.
+    // This is used to make pronouncing Russian words easier for learners. 
+    let en = ru.replace(/а/gi, "a");
+    en = en.replace(/б/gi, "b");
+    en = en.replace(/в/gi, "v");
+    en = en.replace(/г/gi, "g");
+    en = en.replace(/д/gi, "d");
+    en = en.replace(/е/gi, "e");
+    en = en.replace(/ё/gi, "e");
+    en = en.replace(/ж/gi, "zh");
+    en = en.replace(/з/gi, "z");
+    en = en.replace(/и/gi, "i");
+    en = en.replace(/й/gi, "i");
+    en = en.replace(/к/gi, "k");
+    en = en.replace(/л/gi, "l");
+    en = en.replace(/м/gi, "m");
+    en = en.replace(/н/gi, "n");
+    en = en.replace(/о/gi, "o");
+    en = en.replace(/п/gi, "p");
+    en = en.replace(/р/gi, "r");
+    en = en.replace(/с/gi, "s");
+    en = en.replace(/т/gi, "t");
+    en = en.replace(/у/gi, "u");
+    en = en.replace(/ф/gi, "f");
+    en = en.replace(/х/gi, "kh");
+    en = en.replace(/ц/gi, "ts");
+    en = en.replace(/ч/gi, "ch");
+    en = en.replace(/ш/gi, "sh");
+    en = en.replace(/щ/gi, "shch");
+    en = en.replace(/ъ/gi, "\"");
+    en = en.replace(/ы/gi, "y");
+    en = en.replace(/ь/gi, "'");
+    en = en.replace(/э/gi, "e");
+    en = en.replace(/ю/gi, "iu");
+    en = en.replace(/я/gi, "ia");
+
+    return en;
+}
+
+function transliterateSpanish(es: string): string {
+    // Replace Spanish letters with corresponding English letters.
+    // This is used to make pronouncing Spanish words easier for learners. 
+    let en = es.replace(/h/gi, "'");
+    en = en.replace(/a/gi, "ah");
+    en = en.replace(/á/gi, "áh");
+    en = en.replace(/ll/gi, "y");
+    en = en.replace(/e/gi, "eh");
+    en = en.replace(/è/gi, "èh");
+    en = en.replace(/o/gi, "oh");
+    en = en.replace(/ó/gi, "óh");
+    en = en.replace(/ai/gi, "ay");
+    en = en.replace(/all/gi, "ay");
+    en = en.replace(/ay/gi, "ay");
+    en = en.replace(/ca/gi, "ka");
+    en = en.replace(/co/gi, "ko");
+    en = en.replace(/có/gi, "kó");
+    en = en.replace(/cu/gi, "ku");
+    en = en.replace(/ce/gi, "se");
+    en = en.replace(/ci/gi, "si");
+    en = en.replace(/ch/gi, "ch");
+    en = en.replace(/d/gi, "th");
+    en = en.replace(/ge/gi, "he");
+    en = en.replace(/gue/gi, "ge");
+    en = en.replace(/gué/gi, "gé");
+    en = en.replace(/gui/gi, "gee");
+    en = en.replace(/gua/gi, "gwa");
+    en = en.replace(/güe/gi, "gwe");
+    en = en.replace(/güi/gi, "gwi");
+    en = en.replace(/guo/gi, "gwo");
+    en = en.replace(/gi/gi, "hee");
+    en = en.replace(/j/gi, "h");
+    en = en.replace(/ñ/gi, "ny");
+    en = en.replace(/qu/gi, "k");
+    en = en.replace(/z/gi, "s");
+    en = en.replace(/u/gi, "oo");
+    en = en.replace(/i/gi, "ee");
+    en = en.replace(/í/gi, "ee");
+    if (en.startsWith("v")) en = en.replace(/v/gi, "b");
 
     return en;
 }
