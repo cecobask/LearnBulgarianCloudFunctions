@@ -51,10 +51,6 @@ exports.wordOfTheDay =
                 console.log("Word of the day: " + wordBG + " (" + wotdES + ")");
                 console.log("Word of the day: " + wordBG + " (" + wotdRU + ")");
 
-                // const wordsArray = [wordBG, wotdEN, wotdRU, wotdES]
-                // 
-                // 
-
                 // Send http requests simultaneously.
                 await axios.all([getWordDefinition(wotdEN), getExampleSentence(wotdEN)])
                     .then(axios.spread(async (definitions, examples) => {
@@ -69,7 +65,7 @@ exports.wordOfTheDay =
                                 example.text !== undefined
                             );
 
-                            const wordType = wordDef.partOfSpeech;
+                            const wordType = !wordDef.partOfSpeech ? "noun" : wordDef.partOfSpeech
 
                             // Translate definition.
                             const wordDefinitionEN = stripHtml(wordDef.text);
