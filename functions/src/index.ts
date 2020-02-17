@@ -17,7 +17,8 @@ const storage = new Storage();
 admin.initializeApp();
 
 const pastWordsRef = admin.database().ref('wordOfTheDay').child('past');
-const currentWOTDRef = admin.database().ref('wordOfTheDay').child('current')
+const currentWOTDRef = admin.database().ref('wordOfTheDay').child('current');
+const wordSelection = admin.database().ref('wordOfTheDay').child('selection');
 
 // Function to select a random word every day at 00:00 Dublin time.
 exports.wordOfTheDay =
@@ -337,7 +338,7 @@ async function textToSpeech(accessToken: string, text: string, fileName: string,
 
                 // Upload the audio file to Google Cloud Storage.
                 const localRS = fs.createReadStream(filePath);
-                const remoteWS = bucket.file(fullFileName).createWriteStream({ contentType: 'audio/mpeg', resumable: false, predefinedAcl: 'publicRead' });
+                const remoteWS = bucket.file("wordoftheday/"+fullFileName).createWriteStream({ contentType: 'audio/mpeg', resumable: false, predefinedAcl: 'publicRead' });
                 await localRS.pipe(remoteWS)
                     .on('error', writeError => console.log(writeError))
                     .on('finish', () => {
@@ -359,7 +360,7 @@ async function textToSpeech(accessToken: string, text: string, fileName: string,
         });
 
     // Return URL to Google Cloud Storage location of the word.
-    return `https://storage.googleapis.com/lingvino.appspot.com/${fullFileName}`;
+    return `https://storage.googleapis.com/lingvino.appspot.com/wordoftheday/${fullFileName}`;
 }
 
 function traverseDir(dir: any) {
@@ -376,92 +377,17 @@ function traverseDir(dir: any) {
 }
 
 async function pickWordOfTheDay(): Promise<string> {
-    // Picks random word.
-    const word = _.sample([
-        "акула",
-        "бик",
-        "бобър",
-        "бръмбар",
-        "видра",
-        "врабче",
-        "врана",
-        "вълк",
-        "гарван",
-        "глиган",
-        "горила",
-        "гущер",
-        "гълъб",
-        "делфин",
-        "заек",
-        "елен",
-        "животно",
-        "жираф",
-        "змия",
-        "калинка",
-        "камила",
-        "канарче",
-        "катерица",
-        "кенгуру",
-        "коза",
-        "кокошка",
-        "комар",
-        "котка",
-        "крава",
-        "кукувица",
-        "кълвач",
-        "къртица",
-        "лебед",
-        "лисица",
-        "лос",
-        "лъв",
-        "лястовица",
-        "маймуна",
-        "медуза",
-        "мечка",
-        "мишка",
-        "молец",
-        "морж",
-        "мравка",
-        "муха",
-        "носорог",
-        "октопод",
-        "омар",
-        "орел",
-        "оса",
-        "охлюв",
-        "папагал",
-        "патица",
-        "паун",
-        "паяк",
-        "пеперуда",
-        "пингвин",
-        "плъх",
-        "прасе",
-        "прилеп",
-        "пуйка",
-        "пчела",
-        "риба",
-        "скакалец",
-        "скарида",
-        "сова",
-        "сьомга",
-        "таралеж",
-        "тигър",
-        "тюлен",
-        "фазан",
-        "хамстер",
-        "хипопотам",
-        "хлебарка",
-        "чайка",
-        "щраус",
-        "щъркел",
-        "язовец"
-    ])!;
+    // Picks a random word.
+    const selection: Array<string> = [];
+    await wordSelection.once('value', (snapshot: any) => {
+        snapshot.forEach((elem: any) => selection.push(elem.key));
+    })
+    const word = _.sample(selection)!
 
     // Retrieve all past WOTDs.
     const pastWords: any[] = [];
-    await pastWordsRef.once('value', snap => {
-        snap!.forEach(el => {
+    await pastWordsRef.once('value', (snap: any) => {
+        snap!.forEach((el: any) => {
             pastWords.push(el.val());
         });
     });
@@ -472,7 +398,8 @@ async function pickWordOfTheDay(): Promise<string> {
         console.log(`word ${word} already picked.`)
         return pickWordOfTheDay();
     } else {
-        console.log(`word ${word} hasn't been picked before.`)
+        console.log(`word ${word} hasn't been picked before.`);
+        await wordSelection.child(word).remove(); // Remove the word from 'selection'.
         return word;
     }
 }
