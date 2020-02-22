@@ -1,14 +1,15 @@
 import * as admin from 'firebase-admin';
 import * as functions from 'firebase-functions';
 import * as _ from 'lodash';
-import { Translate } from '@google-cloud/translate';
-import { Storage } from '@google-cloud/storage';
+import {Translate} from '@google-cloud/translate';
+import {Storage} from '@google-cloud/storage';
 import axios from 'axios';
-import { WordOfTheDay } from './WordOfTheDay';
+import {WordOfTheDay} from './WordOfTheDay';
+import * as os from 'os';
 import fs = require('fs');
 import xmlbuilder = require('xmlbuilder');
 import path = require('path');
-import * as os from 'os';
+import DataSnapshot = admin.database.DataSnapshot;
 
 // Instantiate objects.
 const translate = new Translate();
@@ -57,7 +58,7 @@ exports.wordOfTheDay =
                     .then(axios.spread(async (definitions, examples) => {
                         if (definitions.status === 200 && examples.status === 200) {
                             const wordDef = definitions.data.find((definition: any) =>
-                                // Return the first word definition that's not undefined. 
+                                // Return the first word definition that's not undefined.
                                 definition.text !== undefined
                             );
 
@@ -66,7 +67,7 @@ exports.wordOfTheDay =
                                 example.text !== undefined
                             );
 
-                            const wordType = !wordDef.partOfSpeech ? "noun" : wordDef.partOfSpeech
+                            const wordType = !wordDef.partOfSpeech ? "noun" : wordDef.partOfSpeech;
 
                             // Translate definition.
                             const wordDefinitionEN = stripHtml(wordDef.text);
@@ -126,14 +127,13 @@ function calculateDate(offset: number): string {
 async function translateText(text: string, sourceLang: string, targetLang: string): Promise<string> {
     let translation: string = "";
     await translate
-        .translate(text, { from: sourceLang, to: targetLang })
+        .translate(text, {from: sourceLang, to: targetLang})
         .then((results: any) => {
             // Translated word may start with 'the/an/a';
             if (results[0].startsWith("the ") || results[0].startsWith("a ") || results[0].startsWith("an ")) {
                 // Remove article from the string.
                 translation = results[0].split(' ').pop();
-            }
-            else translation = results[0];
+            } else translation = results[0];
         })
         .catch((err: any) => {
             console.error(err)
@@ -144,7 +144,7 @@ async function translateText(text: string, sourceLang: string, targetLang: strin
 
 function transliterateBulgarian(bg: string): string {
     // Replace Bulgarian letters with corresponding English letters.
-    // This is used to make pronouncing Bulgarian words easier for learners. 
+    // This is used to make pronouncing Bulgarian words easier for learners.
     let en = bg.replace(/а/gi, "a");
     en = en.replace(/б/gi, "b");
     en = en.replace(/в/gi, "v");
@@ -181,7 +181,7 @@ function transliterateBulgarian(bg: string): string {
 
 function transliterateRussian(ru: string): string {
     // Replace Russian letters with corresponding English letters.
-    // This is used to make pronouncing Russian words easier for learners. 
+    // This is used to make pronouncing Russian words easier for learners.
     let en = ru.replace(/а/gi, "a");
     en = en.replace(/б/gi, "b");
     en = en.replace(/в/gi, "v");
@@ -221,7 +221,7 @@ function transliterateRussian(ru: string): string {
 
 function transliterateSpanish(es: string): string {
     // Replace Spanish letters with corresponding English letters.
-    // This is used to make pronouncing Spanish words easier for learners. 
+    // This is used to make pronouncing Spanish words easier for learners.
     let en = es.replace(/h/gi, "'");
     en = en.replace(/a/gi, "ah");
     en = en.replace(/á/gi, "áh");
@@ -266,10 +266,10 @@ function transliterateSpanish(es: string): string {
 async function getSpeechAccessToken(subscriptionKey: string) {
     return await axios.post('https://northeurope.api.cognitive.microsoft.com/sts/v1.0/issuetoken',
         null, {
-        headers: {
-            'Ocp-Apim-Subscription-Key': subscriptionKey
-        }
-    });
+            headers: {
+                'Ocp-Apim-Subscription-Key': subscriptionKey
+            }
+        });
 }
 
 async function textToSpeech(accessToken: string, text: string, fileName: string, language: string): Promise<string> {
@@ -338,7 +338,11 @@ async function textToSpeech(accessToken: string, text: string, fileName: string,
 
                 // Upload the audio file to Google Cloud Storage.
                 const localRS = fs.createReadStream(filePath);
-                const remoteWS = bucket.file("wordoftheday/"+fullFileName).createWriteStream({ contentType: 'audio/mpeg', resumable: false, predefinedAcl: 'publicRead' });
+                const remoteWS = bucket.file("wordoftheday/" + fullFileName).createWriteStream({
+                    contentType: 'audio/mpeg',
+                    resumable: false,
+                    predefinedAcl: 'publicRead'
+                });
                 await localRS.pipe(remoteWS)
                     .on('error', writeError => console.log(writeError))
                     .on('finish', () => {
@@ -379,10 +383,12 @@ function traverseDir(dir: any) {
 async function pickWordOfTheDay(): Promise<string> {
     // Picks a random word.
     const selection: Array<string> = [];
-    await wordSelection.once('value', (snapshot: any) => {
-        snapshot.forEach((elem: any) => selection.push(elem.key));
-    })
-    const word = _.sample(selection)!
+    await wordSelection.once('value', (snapshot: DataSnapshot) => {
+        snapshot.forEach(snap => {
+            if (snap.key) selection.push(snap.key)
+        });
+    });
+    const word = _.sample(selection)!;
 
     // Retrieve all past WOTDs.
     const pastWords: any[] = [];
@@ -395,7 +401,7 @@ async function pickWordOfTheDay(): Promise<string> {
     // Check if the chosen word has been picked before.
     if (pastWords.some(w => w.word === word)) {
         // Recursive function call.
-        console.log(`word ${word} already picked.`)
+        console.log(`word ${word} already picked.`);
         return pickWordOfTheDay();
     } else {
         console.log(`word ${word} hasn't been picked before.`);
