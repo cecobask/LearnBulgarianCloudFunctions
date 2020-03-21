@@ -36,7 +36,6 @@ exports.wordOfTheDay =
 
             // Pick a random word that hasn't been selected before.
             const wordBG = await pickWordOfTheDay();
-            console.log(wordBG);
 
             try {
                 // Translate word.
