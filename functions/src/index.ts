@@ -384,7 +384,7 @@ async function pickWordOfTheDay(): Promise<string> {
     const selection: Array<string> = [];
     await wordSelection.once('value', (snapshot: DataSnapshot) => {
         snapshot.forEach(snap => {
-            if (snap.key) selection.push(snap.key)
+            if (snap.key) selection.push(snap.val())
         });
     });
     const word = _.sample(selection)!;
@@ -401,12 +401,24 @@ async function pickWordOfTheDay(): Promise<string> {
     if (pastWords.some(w => w.word === word)) {
         // Recursive function call.
         console.log(`word ${word} already picked.`);
+        await removeMatchingWord(word);
         return pickWordOfTheDay();
     } else {
         console.log(`word ${word} hasn't been picked before.`);
-        await wordSelection.child(word).remove(); // Remove the word from 'selection'.
+        await removeMatchingWord(word);
         return word;
     }
+}
+
+function removeMatchingWord(word: string) {
+    return wordSelection.once('value') // Remove the word from 'selection'.
+        .then(snapshot => {
+            snapshot.forEach(wordSnap => {
+                if (wordSnap.val() === word) {
+                    wordSelection.child(wordSnap.key!).remove()
+                }
+            });
+        });
 }
 
 function getWordDefinition(word: string) {
