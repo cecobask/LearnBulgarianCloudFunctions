@@ -416,6 +416,7 @@ function removeMatchingWord(word: string) {
             snapshot.forEach(wordSnap => {
                 if (wordSnap.val() === word) {
                     wordSelection.child(wordSnap.key!).remove()
+                        .catch(err => console.log(err))
                 }
             });
         });
@@ -442,5 +443,5 @@ function getExampleSentence(word: string) {
 }
 
 function stripHtml(htmlString: string) {
-    return htmlString.replace(/<[^>]+>/g, '');
+    return htmlString.toString().replace(/<[^>]+>/g, '');
 }
