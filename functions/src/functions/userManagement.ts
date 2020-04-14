@@ -1,7 +1,7 @@
 import * as functions from 'firebase-functions';
 import {auth, database} from '../admin';
 
-export const userManagement = functions.https.onCall( (data, context) => {
+export const userManagement = functions.https.onCall((data, context) => {
     switch (data.action) {
         case 'getAllAccounts':
             return getAllAccounts();
@@ -15,9 +15,15 @@ export const userManagement = functions.https.onCall( (data, context) => {
 });
 
 function createAccount(userObject: any) {
-    database.ref('users').child(userObject.uid).set(userObject).then().catch()
     return auth.createUser(userObject)
-        .then(async userRecord => ({newUser: userRecord.toJSON(), allUsers: await getAllAccounts()}))
+        .then(async userRecord => {
+            database.ref('users').child(userRecord.uid).set({
+                email: userRecord.email,
+                userID: userRecord.uid,
+                username: userRecord.email!!.split('@')[0]
+            }).then().catch();
+            return {newUser: userRecord.toJSON(), allUsers: await getAllAccounts()}
+        })
         .catch(error => console.log('Error creating new user:', error));
 }
 
@@ -35,7 +41,9 @@ function deleteAccount(uid: string) {
 }
 
 async function getAllAccounts() {
-    return {users: await auth.listUsers(1000)
+    return {
+        users: await auth.listUsers(1000)
             .then(listUsersResult => listUsersResult.users.map(userRecord => userRecord.toJSON()))
-            .catch(error => console.log('Error listing users:', error))}
+            .catch(error => console.log('Error listing users:', error))
+    }
 }
