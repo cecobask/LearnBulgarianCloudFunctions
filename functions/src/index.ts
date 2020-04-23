@@ -5,4 +5,6 @@ admin.initializeApp(functions.config().firebase);
 
 // Function to select a random word every day at 00:00 Dublin time.
 export  * from './functions/wotd';
+
+// Function that performs user management actions.
 export  * from './functions/userManagement';
