@@ -19,7 +19,7 @@
     "axios": "^0.19.0",
     "firebase-admin": "^8.9.2",
     "firebase-functions": "^3.3.0",
-    "lodash": "^4.17.5",
+    "lodash": "^4.17.19",
     "xmlbuilder": "^13.0.2"
   },
   "devDependencies": {
